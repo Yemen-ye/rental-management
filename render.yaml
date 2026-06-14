@@ -3,7 +3,6 @@ services:
     name: rental-api
     env: node
     region: ohio
-    plan: free
     branch: main
     repo: https://github.com/Yemen-ye/rental-management
     healthCheckPath: /api/health
@@ -21,7 +20,7 @@ services:
       - key: JWT_REFRESH_EXPIRATION
         value: 7d
       - key: CORS_ORIGIN
-        value: https://rental-management.onrender.com
+        value: https://rental-frontend.onrender.com
       - key: NODE_ENV
         value: production
       - key: LOG_LEVEL
