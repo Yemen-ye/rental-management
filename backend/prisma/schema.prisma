@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  MANAGER
+  AGENT
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  VILLA
+  COMMERCIAL
+  OFFICE
+  WAREHOUSE
+  LAND
+  OTHER
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  INACTIVE
+}
+
+enum UnitStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  RESERVED
+}
+
+enum LeaseStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+  DRAFT
+}
+
+enum PaymentFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  CREDIT_CARD
+  OTHER
+}
+
+enum CheckStatus {
+  PENDING
+  DEPOSITED
+  BOUNCED
+  CLEARED
+  CANCELLED
+}
+
+enum NotificationType {
+  LEASE_EXPIRING
+  LEASE_RENEWAL
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
+  CHECK_MATURITY
+  CHECK_BOUNCED
+  CONTRACT_CREATED
+  CONTRACT_TERMINATED
+  TENANT_REGISTERED
+  SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  RENEW
+  TERMINATE
+  SEND_NOTIFICATION
+}
+
+enum EntityType {
+  USER
+  PROPERTY
+  UNIT
+  TENANT
+  LEASE
+  PAYMENT
+  CHECK
+  NOTIFICATION
+  ORGANIZATION
+}
+
+model Organization {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  email           String?
+  phone           String?
+  address         String?
+  logo            String?
+  subscriptionTier String  @default("free")
+  settings        Json     @default("{}")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users          User[]
+  properties     Property[]
+  tenants        Tenant[]
+  leases         Lease[]
+  payments       Payment[]
+  checks         Check[]
+  notifications  Notification[]
+  notificationTemplates NotificationTemplate[]
+  activityLogs   ActivityLog[]
+  auditTrails    AuditTrail[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  organizationId String
+  email          String
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole  @default(MANAGER)
+  avatar         String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  loginHistory   LoginHistory[]
+  activityLogs   ActivityLog[]
+  notifications  Notification[]
+  auditTrails    AuditTrail[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  ipAddress String?
+  userAgent String?
+  success   Boolean  @default(true)
+  loginAt   DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
+
+model Property {
+  id             String        @id @default(uuid())
+  organizationId String
+  name           String
+  type           PropertyType  @default(APARTMENT)
+  address        String?
+  city           String?
+  area           String?
+  totalUnits     Int           @default(0)
+  description    String?
+  status         PropertyStatus @default(AVAILABLE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  units          Unit[]
+
+  @@index([organizationId])
+  @@index([city])
+}
+
+model Unit {
+  id              String     @id @default(uuid())
+  propertyId      String
+  unitNumber      String
+  floor           Int?
+  bedrooms        Int        @default(0)
+  bathrooms       Int        @default(0)
+  areaSqm         Float?
+  rentAmount      Decimal    @default(0)
+  securityDeposit Decimal    @default(0)
+  status          UnitStatus @default(AVAILABLE)
+  description     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  property        Property   @relation(fields: [propertyId], references: [id])
+  leases          Lease[]
+
+  @@index([propertyId])
+  @@index([status])
+}
+
+model Tenant {
+  id               String   @id @default(uuid())
+  organizationId   String
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String?
+  idType           String?
+  idNumber         String?
+  nationality      String?
+  emergencyContact String?
+  notes            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  leases           Lease[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([phone])
+}
+
+model Lease {
+  id                String           @id @default(uuid())
+  organizationId    String
+  unitId            String
+  tenantId          String
+  startDate         DateTime
+  endDate           DateTime
+  rentAmount        Decimal
+  securityDeposit   Decimal          @default(0)
+  paymentFrequency  PaymentFrequency @default(MONTHLY)
+  paymentDay        Int              @default(1)
+  noticePeriodDays  Int              @default(30)
+  autoRenewal       Boolean          @default(false)
+  status            LeaseStatus      @default(ACTIVE)
+  terms             String?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  organization      Organization     @relation(fields: [organizationId], references: [id])
+  unit              Unit             @relation(fields: [unitId], references: [id])
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  payments          Payment[]
+  checks            Check[]
+  reminders         LeaseReminder[]
+
+  @@index([organizationId])
+  @@index([unitId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model LeaseReminder {
+  id         String            @id @default(uuid())
+  leaseId    String
+  daysBefore Int
+  sentAt     DateTime?
+  type       String            @default("EXPIRY")
+  channel    String            @default("EMAIL")
+  status     String            @default("PENDING")
+  createdAt  DateTime          @default(now())
+
+  lease      Lease             @relation(fields: [leaseId], references: [id])
+  @@index([leaseId])
+  @@index([status])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  organizationId  String
+  leaseId         String
+  amount          Decimal
+  dueDate         DateTime
+  paidDate        DateTime?
+  status          PaymentStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
+  referenceNumber String?
+  notes           String?
+  lateFee         Decimal       @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  lease           Lease         @relation(fields: [leaseId], references: [id])
+  check           Check?
+
+  @@index([organizationId])
+  @@index([leaseId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model Check {
+  id             String       @id @default(uuid())
+  organizationId String
+  leaseId        String
+  paymentId      String
+  checkNumber    String
+  bankName       String
+  amount         Decimal
+  issueDate      DateTime
+  maturityDate   DateTime
+  status         CheckStatus  @default(PENDING)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  lease          Lease        @relation(fields: [leaseId], references: [id])
+  payment        Payment      @relation(fields: [paymentId], references: [id])
+
+  @@unique([leaseId])
+  @@unique([paymentId])
+  @@index([organizationId])
+  @@index([maturityDate])
+  @@index([status])
+}
+
+model Notification {
+  id             String             @id @default(uuid())
+  organizationId String
+  userId         String?
+  type           NotificationType
+  channel        NotificationChannel
+  title          String
+  body           String
+  data           Json               @default("{}")
+  status         NotificationStatus @default(PENDING)
+  readAt         DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  user           User?              @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model NotificationTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  type           String
+  channel        String
+  subject        String
+  body           String
+  variables      Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  @@unique([organizationId, type, channel])
+  @@index([organizationId])
+}
+
+model ActivityLog {
+  id             String        @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         ActivityAction
+  entityType     EntityType
+  entityId       String?
+  oldValues      Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?
+  description    String?
+  createdAt      DateTime      @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model AuditTrail {
+  id             String        @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         ActivityAction
+  entityType     EntityType
+  entityId       String
+  oldValues      Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+}
